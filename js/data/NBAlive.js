@@ -1,16 +1,14 @@
 // ============================================================
 // NBAlive.js
-// Fetches live NBA Regular Season data from balldontlie.io
-// Mock data for everything else lives in basketballmock.js
+// NBA Playoffs 2026 = live data from balldontlie.io
+// NBA Regular Season = completed, no live fetch needed
+// Everything else lives in basketballmock.js
 // ============================================================
 
 const API_KEY = "c2c68599-643d-4291-992f-60fa5ed143f5"; // ← paste your key here
 
 const BASE_URL = "https://api.balldontlie.io/v1";
 
-// ============================================================
-// HELPER: fetch from the API with your key attached
-// ============================================================
 async function bdlFetch(path) {
   const response = await fetch(`${BASE_URL}${path}`, {
     headers: { Authorization: API_KEY }
@@ -19,30 +17,19 @@ async function bdlFetch(path) {
   return response.json();
 }
 
-// ============================================================
-// HELPER: build a "YYYY-MM-DD" string from a Date object
-// ============================================================
 function toDateStr(date) {
   return date.toISOString().split("T")[0];
 }
 
 // ============================================================
-// FETCH LIVE NBA GAMES
-// Gets games from 14 days ago through 7 days ahead
-// Filters out playoff games — regular season only
+// FETCH LIVE NBA PLAYOFF GAMES
+// Gets all postseason games from April 18 onwards
 // ============================================================
-async function fetchNBAGames() {
-  const start = new Date();
-  start.setDate(start.getDate() - 14);
-
-  const end = new Date();
-  end.setDate(end.getDate() + 7);
-
+async function fetchNBAPlayoffGames() {
   const data = await bdlFetch(
-    `/games?start_date=${toDateStr(start)}&end_date=${toDateStr(end)}&per_page=100`
+    `/games?start_date=2026-04-18&end_date=2026-06-30&per_page=100`
   );
-
-  const games = data.data.filter(g => g.postseason === false); // regular season only
+  const games = data.data.filter(g => g.postseason === true);
   return games;
 }
 
@@ -68,17 +55,17 @@ function apiGameToMatch(game) {
     venue: null,
     homeScore: game.home_team_score || null,
     awayScore: game.visitor_team_score || null,
-    round: "Regular Season",
+    round: game.round || "Playoffs",
     status: status
   };
 }
 
 // ============================================================
-// BUILD LIVE NBA REGULAR SEASON COMPETITION OBJECT
+// BUILD LIVE NBA PLAYOFFS 2026 COMPETITION OBJECT
 // ============================================================
-async function buildNBARegularSeason() {
+async function buildNBAPlayoffs2026() {
   try {
-    const games = await fetchNBAGames();
+    const games = await fetchNBAPlayoffGames();
 
     const teamsMap = new Map();
     games.forEach(game => {
@@ -99,14 +86,14 @@ async function buildNBARegularSeason() {
     const matches = games.map(apiGameToMatch);
 
     return {
-      id: "nba-2025-regular",
-      name: "NBA Regular Season 2025–26",
+      id: "nba-2026-playoffs",
+      name: "NBA Playoffs 2026",
       sport: "basketball",
       category: "NBA",
       status: "ongoing",
-      dateStart: "2025-10-22",
-      dateEnd: "2026-04-13",
-      description: "The 79th NBA season featuring all 30 teams competing across the Eastern and Western Conferences for playoff seeding.",
+      dateStart: "2026-04-18",
+      dateEnd: "2026-06-19",
+      description: "The 2026 NBA Playoffs. The New York Knicks represent the East. The Western Conference Finals Game 7 between OKC Thunder and San Antonio Spurs is tonight.",
       watchLink: null,
       teams: teams,
       matches: matches,
@@ -114,22 +101,30 @@ async function buildNBARegularSeason() {
     };
 
   } catch (error) {
-    console.error("Failed to fetch live NBA data:", error);
-
-    // Fall back to the mock NBA regular season entry if API fails
-    return BASKETBALL_DATA.find(c => c.id === "nba-2025-regular");
+    console.error("Failed to fetch live NBA playoff data:", error);
+    return null;
   }
 }
 
 // ============================================================
 // MAIN: getBasketballData()
-// Called by competitions.html and detail.html
-// Combines live NBA entry with everything else from mock file
 // ============================================================
 async function getBasketballData() {
-  const liveNBA = await buildNBARegularSeason();
-  const mockWithoutNBA = BASKETBALL_DATA.filter(c => c.id !== "nba-2025-regular");
-  return [liveNBA, ...mockWithoutNBA];
+  const livePlayoffs = await buildNBAPlayoffs2026();
+
+  // NBA Regular Season is done — use the mock entry as-is
+  const regularSeason = BASKETBALL_DATA.find(c => c.id === "nba-2025-regular");
+
+  // Everything else from mock file except the regular season
+  const restOfMock = BASKETBALL_DATA.filter(c => c.id !== "nba-2025-regular");
+
+  // Put live playoffs first, then regular season, then everything else
+  const combined = [];
+  if (livePlayoffs) combined.push(livePlayoffs);
+  if (regularSeason) combined.push(regularSeason);
+  combined.push(...restOfMock);
+
+  return combined;
 }
 
 window.getBasketballData = getBasketballData;
