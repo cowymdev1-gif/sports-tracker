@@ -22,11 +22,11 @@
 
 <main id="mainContent"></main>
 
-<script src="js/data/basketball.js"></script>
+<script src="js/data/basketballmock.js"></script>
+<script src="js/data/NBAlive.js"></script>
 <script>
   const params = new URLSearchParams(window.location.search);
   const id = params.get('id');
-  const comp = BASKETBALL_DATA.find(c => c.id === id);
 
   function statusBadge(status) {
     const map = {
@@ -48,14 +48,14 @@
       + ' · ' + d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
   }
 
-  function getTeamName(teamId) {
+  function getTeamName(comp, teamId) {
     const t = comp.teams.find(t => t.id === teamId);
     return t ? t.name : teamId;
   }
 
-  function renderMatchCard(match) {
-    const homeName = getTeamName(match.homeTeam);
-    const awayName = getTeamName(match.awayTeam);
+  function renderMatchCard(comp, match) {
+    const homeName = getTeamName(comp, match.homeTeam);
+    const awayName = getTeamName(comp, match.awayTeam);
     const played = match.status === 'completed';
     const live = match.status === 'live';
 
@@ -106,7 +106,7 @@
     return groups;
   }
 
-  function render() {
+  function render(comp) {
     if (!comp) {
       document.getElementById('mainContent').innerHTML = `
         <div class="empty">
@@ -141,7 +141,7 @@
         matchesHtml += `
           <div class="round-group">
             <div style="font-size:0.82rem; font-weight:600; color:var(--text-secondary); margin-bottom:0.5rem; padding-left:0.25rem;">${round}</div>
-            ${matches.map(renderMatchCard).join('')}
+            ${matches.map(m => renderMatchCard(comp, m)).join('')}
           </div>
         `;
       });
@@ -166,7 +166,13 @@
     `;
   }
 
-  render();
+  // Load live NBA data, merge with mock data, then find and render the right competition
+  getBasketballData().then(liveData => {
+    const mockWithoutNBA = BASKETBALL_DATA.filter(c => c.id !== "nba-2025-regular");
+    const combined = [liveData[0], ...mockWithoutNBA];
+    const comp = combined.find(c => c.id === id);
+    render(comp);
+  });
 </script>
 
 </body>

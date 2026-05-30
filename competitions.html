@@ -34,9 +34,9 @@
   <div class="competition-list" id="competitionList"></div>
 </main>
 
-<script src="js/data/basketball.js"></script>
+<script src="js/data/basketballmock.js"></script>
+<script src="js/data/NBAlive.js"></script>
 <script>
-  const params = new URLSearchParams(window.location.search);
   let activeFilter = 'all';
 
   function statusBadge(status) {
@@ -53,11 +53,11 @@
     return new Date(str).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
   }
 
-  function render(filter) {
+  function render(filter, allData) {
     const list = document.getElementById('competitionList');
     const data = filter === 'all'
-      ? BASKETBALL_DATA
-      : BASKETBALL_DATA.filter(c => c.status === filter);
+      ? allData
+      : allData.filter(c => c.status === filter);
 
     if (!data.length) {
       list.innerHTML = '<div class="empty">No competitions found.</div>';
@@ -85,10 +85,17 @@
     document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
     activeFilter = btn.dataset.filter;
-    render(activeFilter);
+    render(activeFilter, window._basketballData);
   });
 
-  render('all');
+  // Load live NBA data, merge with mock data, then render
+  getBasketballData().then(liveData => {
+    // Replace the NBA Regular Season entry in mock data with the live version
+    const mockWithoutNBA = BASKETBALL_DATA.filter(c => c.id !== "nba-2025-regular");
+    const combined = [liveData[0], ...mockWithoutNBA];
+    window._basketballData = combined;
+    render(activeFilter, combined);
+  });
 </script>
 
 </body>

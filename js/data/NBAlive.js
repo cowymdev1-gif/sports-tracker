@@ -4,7 +4,7 @@
 // Everything else = kept as-is (WNBA, Olympics, FIBA, NCAA)
 // ============================================================
 
-const API_KEY = "YOUR_NEW_API_KEY_HERE"; // ← paste your rotated key here
+const API_KEY = "c2c68599-643d-4291-992f-60fa5ed143f5"; // ← paste your rotated key here
 
 const BASE_URL = "https://api.balldontlie.io/v1";
 
