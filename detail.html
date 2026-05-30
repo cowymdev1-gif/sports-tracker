@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Competition – SportTrack</title>
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+
+<nav>
+  <div class="nav-logo">Sport<span>Track</span></div>
+  <div class="nav-breadcrumb">
+    <span class="sep">›</span>
+    <a href="index.html">Sports</a>
+    <span class="sep">›</span>
+    <a href="competitions.html?sport=basketball">Basketball</a>
+    <span class="sep">›</span>
+    <span id="navTitle">Competition</span>
+  </div>
+</nav>
+
+<main id="mainContent"></main>
+
+<script src="js/data/basketball.js"></script>
+<script>
+  const params = new URLSearchParams(window.location.search);
+  const id = params.get('id');
+  const comp = BASKETBALL_DATA.find(c => c.id === id);
+
+  function statusBadge(status) {
+    const map = {
+      ongoing: '<span class="badge badge-ongoing">Ongoing</span>',
+      upcoming: '<span class="badge badge-upcoming">Upcoming</span>',
+      completed: '<span class="badge badge-completed">Completed</span>',
+      live: '<span class="badge badge-live">● Live</span>'
+    };
+    return map[status] || '';
+  }
+
+  function formatDate(str) {
+    return new Date(str).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+  }
+
+  function formatDateTime(str) {
+    const d = new Date(str);
+    return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+      + ' · ' + d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+  }
+
+  function getTeamName(teamId) {
+    const t = comp.teams.find(t => t.id === teamId);
+    return t ? t.name : teamId;
+  }
+
+  function renderMatchCard(match) {
+    const homeName = getTeamName(match.homeTeam);
+    const awayName = getTeamName(match.awayTeam);
+    const played = match.status === 'completed';
+    const live = match.status === 'live';
+
+    let homeScoreHtml, awayScoreHtml;
+
+    if (played) {
+      const homeWon = match.homeScore > match.awayScore;
+      homeScoreHtml = `<span class="${homeWon ? 'score-winner' : 'score-home'}">${match.homeScore}</span>`;
+      awayScoreHtml = `<span class="${!homeWon ? 'score-winner' : 'score-away'}">${match.awayScore}</span>`;
+    } else if (live) {
+      homeScoreHtml = `<span class="score-home">${match.homeScore ?? '–'}</span>`;
+      awayScoreHtml = `<span class="score-away">${match.awayScore ?? '–'}</span>`;
+    } else {
+      homeScoreHtml = `<span class="score-upcoming">TBD</span>`;
+      awayScoreHtml = `<span class="score-upcoming">TBD</span>`;
+    }
+
+    return `
+      <div class="match-card">
+        <div class="match-teams">
+          <div class="match-team home">
+            <div class="match-team-name">${homeName}</div>
+          </div>
+          <div class="match-score">
+            ${homeScoreHtml}
+            <span class="vs">${played || live ? '–' : 'vs'}</span>
+            ${awayScoreHtml}
+          </div>
+          <div class="match-team away">
+            <div class="match-team-name">${awayName}</div>
+          </div>
+        </div>
+        <div class="match-meta">
+          <span>${formatDateTime(match.dateTime)}</span>
+          ${match.venue ? `<span>${match.venue}</span>` : ''}
+          <span>${statusBadge(match.status)}</span>
+        </div>
+      </div>
+    `;
+  }
+
+  function groupMatchesByRound(matches) {
+    const groups = {};
+    matches.forEach(m => {
+      if (!groups[m.round]) groups[m.round] = [];
+      groups[m.round].push(m);
+    });
+    return groups;
+  }
+
+  function render() {
+    if (!comp) {
+      document.getElementById('mainContent').innerHTML = `
+        <div class="empty">
+          <p>Competition not found.</p>
+          <a href="competitions.html?sport=basketball" style="color: var(--accent); margin-top: 1rem; display: inline-block;">← Back to competitions</a>
+        </div>`;
+      return;
+    }
+
+    document.title = `${comp.name} – SportTrack`;
+    document.getElementById('navTitle').textContent = comp.name;
+
+    const teamsHtml = comp.teams.length ? `
+      <div class="section-title">Teams</div>
+      <div class="teams-grid">
+        ${comp.teams.map(t => `
+          <div class="team-card">
+            ${t.seed ? `<div class="team-seed">#${t.seed}</div>` : ''}
+            <div class="team-name">${t.name}</div>
+          </div>
+        `).join('')}
+      </div>
+    ` : '';
+
+    let matchesHtml = '';
+    if (comp.matches.length === 0) {
+      matchesHtml = `<div class="section-title">Matches</div><div class="empty">No matches scheduled yet.</div>`;
+    } else {
+      const groups = groupMatchesByRound(comp.matches);
+      matchesHtml = `<div class="section-title">Matches</div>`;
+      Object.entries(groups).forEach(([round, matches]) => {
+        matchesHtml += `
+          <div class="round-group">
+            <div style="font-size:0.82rem; font-weight:600; color:var(--text-secondary); margin-bottom:0.5rem; padding-left:0.25rem;">${round}</div>
+            ${matches.map(renderMatchCard).join('')}
+          </div>
+        `;
+      });
+    }
+
+    document.getElementById('mainContent').innerHTML = `
+      <div class="detail-header">
+        <h1>${comp.name}</h1>
+        <div class="detail-meta">
+          ${statusBadge(comp.status)}
+          <span class="cat-pill">${comp.category}</span>
+          <span style="font-size:0.82rem; color:var(--text-secondary);">
+            ${formatDate(comp.dateStart)} – ${formatDate(comp.dateEnd)}
+          </span>
+        </div>
+        <div class="detail-desc">${comp.description}</div>
+        ${comp.watchLink ? `<a class="watch-link" href="${comp.watchLink}" target="_blank">▶ Watch</a>` : ''}
+      </div>
+
+      ${teamsHtml}
+      ${matchesHtml}
+    `;
+  }
+
+  render();
+</script>
+
+</body>
+</html>

@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Basketball Competitions – SportTrack</title>
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+
+<nav>
+  <div class="nav-logo">Sport<span>Track</span></div>
+  <div class="nav-breadcrumb">
+    <span class="sep">›</span>
+    <a href="index.html">Sports</a>
+    <span class="sep">›</span>
+    <span>Basketball</span>
+  </div>
+</nav>
+
+<main>
+  <div class="page-header">
+    <h1>🏀 Basketball</h1>
+    <p>Major basketball competitions worldwide.</p>
+  </div>
+
+  <div class="filter-bar" id="filterBar">
+    <button class="filter-btn active" data-filter="all">All</button>
+    <button class="filter-btn" data-filter="ongoing">Ongoing</button>
+    <button class="filter-btn" data-filter="upcoming">Upcoming</button>
+    <button class="filter-btn" data-filter="completed">Completed</button>
+  </div>
+
+  <div class="competition-list" id="competitionList"></div>
+</main>
+
+<script src="js/data/basketball.js"></script>
+<script>
+  const params = new URLSearchParams(window.location.search);
+  let activeFilter = 'all';
+
+  function statusBadge(status) {
+    const map = {
+      ongoing: '<span class="badge badge-ongoing">Ongoing</span>',
+      upcoming: '<span class="badge badge-upcoming">Upcoming</span>',
+      completed: '<span class="badge badge-completed">Completed</span>',
+      live: '<span class="badge badge-live">Live</span>'
+    };
+    return map[status] || '';
+  }
+
+  function formatDate(str) {
+    return new Date(str).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+  }
+
+  function render(filter) {
+    const list = document.getElementById('competitionList');
+    const data = filter === 'all'
+      ? BASKETBALL_DATA
+      : BASKETBALL_DATA.filter(c => c.status === filter);
+
+    if (!data.length) {
+      list.innerHTML = '<div class="empty">No competitions found.</div>';
+      return;
+    }
+
+    list.innerHTML = data.map(comp => `
+      <div class="comp-card" onclick="window.location.href='detail.html?id=${comp.id}'">
+        <div class="comp-main">
+          <div class="comp-name">${comp.name}</div>
+          <div class="comp-meta">
+            ${statusBadge(comp.status)}
+            <span class="cat-pill">${comp.category}</span>
+            <span>${formatDate(comp.dateStart)} – ${formatDate(comp.dateEnd)}</span>
+          </div>
+        </div>
+        <div class="comp-arrow">›</div>
+      </div>
+    `).join('');
+  }
+
+  document.getElementById('filterBar').addEventListener('click', e => {
+    const btn = e.target.closest('[data-filter]');
+    if (!btn) return;
+    document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    activeFilter = btn.dataset.filter;
+    render(activeFilter);
+  });
+
+  render('all');
+</script>
+
+</body>
+</html>

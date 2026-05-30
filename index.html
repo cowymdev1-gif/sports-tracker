@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SportTrack</title>
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+
+<nav>
+  <div class="nav-logo">Sport<span>Track</span></div>
+</nav>
+
+<main>
+  <div class="page-header">
+    <h1>Select a sport</h1>
+    <p>Track competitions, results, and standings across major sports.</p>
+  </div>
+
+  <div class="sport-grid">
+    <div class="sport-card active" onclick="window.location.href='competitions.html?sport=basketball'">
+      <div class="sport-icon">🏀</div>
+      <div class="sport-name">Basketball</div>
+      <div class="sport-tag">Available</div>
+    </div>
+    <div class="sport-card disabled">
+      <div class="sport-icon">🎾</div>
+      <div class="sport-name">Tennis</div>
+      <div class="sport-tag soon">Coming soon</div>
+    </div>
+    <div class="sport-card disabled">
+      <div class="sport-icon">⚽</div>
+      <div class="sport-name">Football</div>
+      <div class="sport-tag soon">Coming soon</div>
+    </div>
+    <div class="sport-card disabled">
+      <div class="sport-icon">🏸</div>
+      <div class="sport-name">Badminton</div>
+      <div class="sport-tag soon">Coming soon</div>
+    </div>
+  </div>
+</main>
+
+</body>
+</html>
