@@ -22,18 +22,32 @@
 
 <main id="mainContent"></main>
 
+<!-- POPUP: slides up when you tap a series card -->
+<div id="seriesPopup" class="popup-overlay" onclick="closePopup(event)">
+  <div class="popup-panel">
+    <div class="popup-header">
+      <div class="popup-title" id="popupTitle"></div>
+      <button class="popup-close" onclick="closePopup()">✕</button>
+    </div>
+    <div class="popup-body" id="popupBody"></div>
+  </div>
+</div>
+
 <script src="js/data/basketballmock.js"></script>
 <script src="js/data/NBAlive.js"></script>
 <script>
   const params = new URLSearchParams(window.location.search);
   const id = params.get('id');
+  let currentComp = null;
+
+  // ── HELPERS ──────────────────────────────────────────────
 
   function statusBadge(status) {
     const map = {
-      ongoing: '<span class="badge badge-ongoing">Ongoing</span>',
-      upcoming: '<span class="badge badge-upcoming">Upcoming</span>',
+      ongoing:   '<span class="badge badge-ongoing">Ongoing</span>',
+      upcoming:  '<span class="badge badge-upcoming">Upcoming</span>',
       completed: '<span class="badge badge-completed">Completed</span>',
-      live: '<span class="badge badge-live">● Live</span>'
+      live:      '<span class="badge badge-live">● Live</span>'
     };
     return map[status] || '';
   }
@@ -53,14 +67,16 @@
     return t ? t.name : teamId;
   }
 
+  // ── MATCH CARD ───────────────────────────────────────────
+  // Used inside the popup to show individual games
+
   function renderMatchCard(comp, match) {
     const homeName = getTeamName(comp, match.homeTeam);
     const awayName = getTeamName(comp, match.awayTeam);
     const played = match.status === 'completed';
-    const live = match.status === 'live';
+    const live   = match.status === 'live';
 
     let homeScoreHtml, awayScoreHtml;
-
     if (played) {
       const homeWon = match.homeScore > match.awayScore;
       homeScoreHtml = `<span class="${homeWon ? 'score-winner' : 'score-home'}">${match.homeScore}</span>`;
@@ -76,17 +92,13 @@
     return `
       <div class="match-card">
         <div class="match-teams">
-          <div class="match-team home">
-            <div class="match-team-name">${homeName}</div>
-          </div>
+          <div class="match-team home"><div class="match-team-name">${homeName}</div></div>
           <div class="match-score">
             ${homeScoreHtml}
             <span class="vs">${played || live ? '–' : 'vs'}</span>
             ${awayScoreHtml}
           </div>
-          <div class="match-team away">
-            <div class="match-team-name">${awayName}</div>
-          </div>
+          <div class="match-team away"><div class="match-team-name">${awayName}</div></div>
         </div>
         <div class="match-meta">
           <span>${formatDateTime(match.dateTime)}</span>
@@ -97,21 +109,162 @@
     `;
   }
 
-  function groupMatchesByRound(matches) {
-    const groups = {};
-    matches.forEach(m => {
-      if (!groups[m.round]) groups[m.round] = [];
-      groups[m.round].push(m);
+  // ── BRACKET / SERIES VIEW ────────────────────────────────
+
+  const ROUND_ORDER = ['First Round', 'Conference Semifinals', 'Conference Finals', 'NBA Finals', 'Finals'];
+
+  // Group all matches into series by unique team pair
+  function groupIntoSeries(matches) {
+    const seriesMap = new Map();
+    matches.forEach(match => {
+      const key = [match.homeTeam, match.awayTeam].sort().join('|');
+      if (!seriesMap.has(key)) seriesMap.set(key, []);
+      seriesMap.get(key).push(match);
     });
-    return groups;
+    return Array.from(seriesMap.values());
+  }
+
+  // Get the round for a series (use the most common round value among its games)
+  function getSeriesRound(games) {
+    const counts = {};
+    games.forEach(g => { counts[g.round] = (counts[g.round] || 0) + 1; });
+    return Object.entries(counts).sort((a, b) => b[1] - a[1])[0]?.[0] || 'Playoffs';
+  }
+
+  // Calculate series score and winner
+  function getSeriesInfo(games) {
+    const wins = {};
+    games.forEach(g => {
+      if (g.status !== 'completed') return;
+      const winner = g.homeScore > g.awayScore ? g.homeTeam : g.awayTeam;
+      wins[winner] = (wins[winner] || 0) + 1;
+    });
+
+    const teams = [...new Set(games.flatMap(g => [g.homeTeam, g.awayTeam]))];
+    const team1 = teams[0], team2 = teams[1] || teams[0];
+    const w1 = wins[team1] || 0;
+    const w2 = wins[team2] || 0;
+
+    let seriesStatus = 'upcoming';
+    let leader = null;
+    if (w1 + w2 > 0) seriesStatus = 'ongoing';
+    if (w1 >= 4) { seriesStatus = 'completed'; leader = team1; }
+    else if (w2 >= 4) { seriesStatus = 'completed'; leader = team2; }
+
+    return { team1, team2, w1, w2, seriesStatus, leader };
+  }
+
+  function renderBracketView(comp) {
+    const allSeries = groupIntoSeries(comp.matches);
+
+    // Group series by round
+    const byRound = {};
+    allSeries.forEach(games => {
+      const round = getSeriesRound(games);
+      if (!byRound[round]) byRound[round] = [];
+      byRound[round].push(games);
+    });
+
+    // Sort rounds in correct playoff order
+    const sortedRounds = Object.keys(byRound).sort((a, b) => {
+      const ai = ROUND_ORDER.indexOf(a);
+      const bi = ROUND_ORDER.indexOf(b);
+      return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
+    });
+
+    let html = '';
+
+    sortedRounds.forEach(round => {
+      html += `<div class="round-group">
+        <div class="round-label">${round}</div>
+        <div class="series-list">`;
+
+      byRound[round].forEach(games => {
+        const { team1, team2, w1, w2, seriesStatus, leader } = getSeriesInfo(games);
+        const name1 = getTeamName(comp, team1);
+        const name2 = getTeamName(comp, team2);
+
+        // Series score label e.g. "3–2"
+        const seriesScore = (w1 + w2 > 0) ? `${w1}–${w2}` : null;
+
+        // Result label
+        let resultLabel = '';
+        if (seriesStatus === 'completed') {
+          resultLabel = `<span class="series-result">✓ ${getTeamName(comp, leader)} win</span>`;
+        } else if (seriesStatus === 'ongoing') {
+          resultLabel = `<span class="series-result ongoing">In progress</span>`;
+        } else {
+          resultLabel = `<span class="series-result upcoming">Upcoming</span>`;
+        }
+
+        // Pass games data through to popup via encoded string
+        const gamesJson = encodeURIComponent(JSON.stringify(games));
+        const seriesTitle = encodeURIComponent(`${name1} vs ${name2}`);
+
+        html += `
+          <div class="series-card" onclick="openPopup('${seriesTitle}', '${gamesJson}')">
+            <div class="series-teams">
+              <div class="series-team ${leader === team1 ? 'series-winner' : ''}">${name1}</div>
+              <div class="series-score-block">
+                ${seriesScore
+                  ? `<div class="series-score">${seriesScore}</div>`
+                  : `<div class="series-vs">vs</div>`}
+              </div>
+              <div class="series-team ${leader === team2 ? 'series-winner' : ''}">${name2}</div>
+            </div>
+            <div class="series-footer">
+              ${resultLabel}
+              <span class="series-tap-hint">${games.length} game${games.length !== 1 ? 's' : ''} · Tap for details →</span>
+            </div>
+          </div>
+        `;
+      });
+
+      html += `</div></div>`;
+    });
+
+    return html;
+  }
+
+  // ── POPUP ────────────────────────────────────────────────
+
+  function openPopup(encodedTitle, encodedGames) {
+    const title = decodeURIComponent(encodedTitle);
+    const games = JSON.parse(decodeURIComponent(encodedGames));
+    document.getElementById('popupTitle').textContent = title;
+    document.getElementById('popupBody').innerHTML = games.map(m => renderMatchCard(currentComp, m)).join('');
+    document.getElementById('seriesPopup').classList.add('active');
+    document.body.style.overflow = 'hidden';
+  }
+
+  function closePopup(event) {
+    // Only close if clicking the dark overlay itself or the ✕ button
+    if (event && event.target !== document.getElementById('seriesPopup') && !event.target.classList.contains('popup-close')) return;
+    document.getElementById('seriesPopup').classList.remove('active');
+    document.body.style.overflow = '';
+  }
+
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') {
+      document.getElementById('seriesPopup').classList.remove('active');
+      document.body.style.overflow = '';
+    }
+  });
+
+  // ── MAIN RENDER ──────────────────────────────────────────
+
+  function isPlayoffs(comp) {
+    return comp.id.includes('playoff') || comp.id.includes('finals');
   }
 
   function render(comp) {
+    currentComp = comp;
+
     if (!comp) {
       document.getElementById('mainContent').innerHTML = `
         <div class="empty">
           <p>Competition not found.</p>
-          <a href="competitions.html?sport=basketball" style="color: var(--accent); margin-top: 1rem; display: inline-block;">← Back to competitions</a>
+          <a href="competitions.html?sport=basketball" style="color:var(--accent); margin-top:1rem; display:inline-block;">← Back to competitions</a>
         </div>`;
       return;
     }
@@ -132,10 +285,21 @@
     ` : '';
 
     let matchesHtml = '';
+
     if (comp.matches.length === 0) {
       matchesHtml = `<div class="section-title">Matches</div><div class="empty">No matches scheduled yet.</div>`;
+
+    } else if (isPlayoffs(comp)) {
+      // BRACKET VIEW for playoffs and finals
+      matchesHtml = `<div class="section-title">Bracket</div>` + renderBracketView(comp);
+
     } else {
-      const groups = groupMatchesByRound(comp.matches);
+      // FLAT LIST VIEW for regular season
+      const groups = {};
+      comp.matches.forEach(m => {
+        if (!groups[m.round]) groups[m.round] = [];
+        groups[m.round].push(m);
+      });
       matchesHtml = `<div class="section-title">Matches</div>`;
       Object.entries(groups).forEach(([round, matches]) => {
         matchesHtml += `
@@ -160,13 +324,12 @@
         <div class="detail-desc">${comp.description}</div>
         ${comp.watchLink ? `<a class="watch-link" href="${comp.watchLink}" target="_blank">▶ Watch</a>` : ''}
       </div>
-
       ${teamsHtml}
       ${matchesHtml}
     `;
   }
 
-  // Load live NBA data, merge with mock data, then find and render the right competition
+  // Load data then render
   getBasketballData().then(liveData => {
     const mockWithoutNBA = BASKETBALL_DATA.filter(c => c.id !== "nba-2025-regular");
     const combined = [liveData[0], ...mockWithoutNBA];

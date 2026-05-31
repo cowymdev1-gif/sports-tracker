@@ -5,7 +5,7 @@
 // Everything else lives in basketballmock.js
 // ============================================================
 
-const API_KEY = "c2c68599-643d-4291-992f-60fa5ed143f5"; // ← paste your key here
+const API_KEY = "c2c68599-643d-4291-992f-60fa5ed143f5";
 
 const BASE_URL = "https://api.balldontlie.io/v1";
 
@@ -17,20 +17,33 @@ async function bdlFetch(path) {
   return response.json();
 }
 
-function toDateStr(date) {
-  return date.toISOString().split("T")[0];
+// ============================================================
+// ASSIGN ROUND NAME BASED ON GAME DATE
+// NBA 2026 playoff schedule (approximate):
+//   First Round:            Apr 18 – May 10
+//   Conference Semifinals:  May 10 – May 28
+//   Conference Finals:      May 28 – Jun 10
+//   NBA Finals:             Jun 10 – Jun 30
+// ============================================================
+function getRoundFromDate(dateStr) {
+  const date = new Date(dateStr);
+  const month = date.getMonth() + 1; // 1-based
+  const day = date.getDate();
+
+  if (month === 4 || (month === 5 && day <= 9)) return "First Round";
+  if (month === 5 && day <= 27) return "Conference Semifinals";
+  if ((month === 5 && day >= 28) || (month === 6 && day <= 9)) return "Conference Finals";
+  return "NBA Finals";
 }
 
 // ============================================================
 // FETCH LIVE NBA PLAYOFF GAMES
-// Gets all postseason games from April 18 onwards
 // ============================================================
 async function fetchNBAPlayoffGames() {
   const data = await bdlFetch(
     `/games?start_date=2026-04-18&end_date=2026-06-30&per_page=100`
   );
-  const games = data.data.filter(g => g.postseason === true);
-  return games;
+  return data.data.filter(g => g.postseason === true);
 }
 
 // ============================================================
@@ -55,7 +68,7 @@ function apiGameToMatch(game) {
     venue: null,
     homeScore: game.home_team_score || null,
     awayScore: game.visitor_team_score || null,
-    round: game.round || "Playoffs",
+    round: getRoundFromDate(game.date), // ← date-based round, not from API
     status: status
   };
 }
@@ -93,7 +106,7 @@ async function buildNBAPlayoffs2026() {
       status: "ongoing",
       dateStart: "2026-04-18",
       dateEnd: "2026-06-19",
-      description: "The 2026 NBA Playoffs. The New York Knicks represent the East. The Western Conference Finals Game 7 between OKC Thunder and San Antonio Spurs is tonight.",
+      description: "The 2026 NBA Playoffs featuring the best teams from the Eastern and Western Conferences.",
       watchLink: null,
       teams: teams,
       matches: matches,
@@ -112,13 +125,9 @@ async function buildNBAPlayoffs2026() {
 async function getBasketballData() {
   const livePlayoffs = await buildNBAPlayoffs2026();
 
-  // NBA Regular Season is done — use the mock entry as-is
   const regularSeason = BASKETBALL_DATA.find(c => c.id === "nba-2025-regular");
-
-  // Everything else from mock file except the regular season
   const restOfMock = BASKETBALL_DATA.filter(c => c.id !== "nba-2025-regular");
 
-  // Put live playoffs first, then regular season, then everything else
   const combined = [];
   if (livePlayoffs) combined.push(livePlayoffs);
   if (regularSeason) combined.push(regularSeason);
